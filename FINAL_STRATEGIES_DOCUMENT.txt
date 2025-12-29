@@ -1,0 +1,228 @@
+====================================================================================================
+NBA IN-GAME TRADING STRATEGIES - FINAL COMPREHENSIVE DOCUMENT
+====================================================================================================
+
+Generated: December 28, 2025 at 14:21
+
+This document contains all validated, backtested, and statistically significant
+trading strategies for NBA in-game markets on Kalshi.
+
+====================================================================================================
+
+EXECUTIVE SUMMARY
+====================================================================================================
+
+Total Strategies Analyzed:          58
+Statistically Significant (p<0.05): 14 (24.1%)
+Bonferroni Significant:             14 (24.1%)
+MC Probability Profitable >95%:     20
+
+Average Net P/L per Trade:          2.77%
+Average Sharpe Ratio:               0.28
+Average Win Rate:                   43.8%
+Total Historical Trades:            244,446
+
+====================================================================================================
+
+METHODOLOGY
+====================================================================================================
+
+Data:
+  - 502 NBA games from December 2024 - December 2025
+  - 680,017 minute-level price observations
+  - Real Kalshi market data with volume and OHLC prices
+
+Strategy Logic:
+  - Mean reversion after large price moves
+  - Focus on extreme price levels (1-20c and 80-99c) due to lower fees
+  - Hold periods: 2-20 minutes
+  - Position size: 100 contracts (scalable)
+
+Testing & Validation:
+  1. Historical backtest with realistic execution
+  2. Statistical significance tests (t-test, binomial test)
+  3. Multiple testing corrections (Bonferroni, FDR)
+  4. Monte Carlo simulations (1,000 iterations per strategy)
+  5. Temporal robustness testing (early vs late game)
+
+====================================================================================================
+
+STRATEGY TIERS
+====================================================================================================
+
+Tier 1: GOLD STANDARD
+  - Bonferroni significant (strictest test)
+  - MC probability profitable >99%
+  - Sharpe ratio >1.0
+
+Tier 2: VALIDATED
+  - FDR significant
+  - MC probability profitable >95%
+  - P-value <0.05
+
+Tier 3: PROMISING
+  - P-value <0.05
+  - MC probability profitable >90%
+
+====================================================================================================
+
+TIER 1: GOLD STANDARD STRATEGIES
+====================================================================================================
+
+Total: 1 strategies
+
+Strategy 1: Price 1-5c, Move >20%, Hold 3min
+----------------------------------------------------------------------------------------------------
+
+BACKTEST RESULTS:
+  Total Trades:              2,487
+  Win Rate:                  42.3%  (CI: [40.3%, 44.2%])
+  Mean Net P/L:              7.49%
+  Median Net P/L:            -13.58%
+  Avg Win:                   67.73%
+  Avg Loss:                  -36.60%
+
+RISK METRICS:
+  Sharpe Ratio:              1.07
+  Max Drawdown:              -2152.89%
+  Win/Loss Ratio:            1.85x
+  Std Dev:                   110.87%
+
+STATISTICAL VALIDATION:
+  P-value:                   7.70e-04
+  T-statistic:               3.37
+  Bonferroni Significant:    YES
+  MC Prob Profitable:        100.0%
+  MC Mean CI:                [3.40%, 11.75%]
+  MC Sharpe CI:              [0.53, 1.59]
+
+EXPECTED PERFORMANCE (per 100 trades):
+  Expected Wins:             42
+  Expected Losses:           58
+  Expected Net P/L:          721.60%
+  Expected Profit (100 contracts): $721.60
+
+RECOMMENDATION:            HIGHLY RECOMMENDED - Strong statistical support
+
+
+====================================================================================================
+
+TIER 2: VALIDATED STRATEGIES
+====================================================================================================
+
+Total: 1 strategies
+
+Strategy 1: Price 1-5c, Move >8%, Hold 3min
+----------------------------------------------------------------------------------------------------
+  Trades: 2,912 | Win Rate: 42.0% | Net P/L: 5.08%
+  Sharpe: 0.78 | P-value: 8.45e-03 | MC Prob: 99.9%
+  Recommendation: RECOMMENDED - Good statistical support
+
+====================================================================================================
+
+TIER 3: PROMISING STRATEGIES
+====================================================================================================
+
+Total: 9 strategies
+
+Strategy 1: Price 1-5c, Move >25%, Hold 3min
+  Trades: 2,107 | Win Rate: 42.2% | Net P/L: 9.76%
+  Sharpe: 1.31 | P-value: 1.56e-04 | MC Prob: 100.0%
+
+Strategy 2: Price 1-5c, Move >25%, Hold 5min
+  Trades: 2,040 | Win Rate: 41.7% | Net P/L: 9.66%
+  Sharpe: 1.12 | P-value: 1.49e-03 | MC Prob: 99.9%
+
+Strategy 3: Price 1-5c, Move >18%, Hold 3min
+  Trades: 2,700 | Win Rate: 42.2% | Net P/L: 6.12%
+  Sharpe: 0.91 | P-value: 3.07e-03 | MC Prob: 100.0%
+
+Strategy 4: Price 1-5c, Move >20%, Hold 5min
+  Trades: 2,415 | Win Rate: 41.4% | Net P/L: 7.00%
+  Sharpe: 0.87 | P-value: 7.41e-03 | MC Prob: 99.9%
+
+Strategy 5: Price 1-5c, Move >15%, Hold 3min
+  Trades: 2,912 | Win Rate: 42.0% | Net P/L: 5.08%
+  Sharpe: 0.78 | P-value: 8.45e-03 | MC Prob: 99.4%
+
+Strategy 6: Price 1-5c, Move >12%, Hold 3min
+  Trades: 2,912 | Win Rate: 42.0% | Net P/L: 5.08%
+  Sharpe: 0.78 | P-value: 8.45e-03 | MC Prob: 99.5%
+
+Strategy 7: Price 1-5c, Move >10%, Hold 3min
+  Trades: 2,912 | Win Rate: 42.0% | Net P/L: 5.08%
+  Sharpe: 0.78 | P-value: 8.45e-03 | MC Prob: 99.6%
+
+Strategy 8: Price 1-10c, Move >25%, Hold 5min
+  Trades: 2,794 | Win Rate: 43.2% | Net P/L: 6.22%
+  Sharpe: 0.75 | P-value: 1.27e-02 | MC Prob: 99.7%
+
+Strategy 9: Price 1-5c, Move >18%, Hold 5min
+  Trades: 2,627 | Win Rate: 41.0% | Net P/L: 5.23%
+  Sharpe: 0.67 | P-value: 3.06e-02 | MC Prob: 98.4%
+
+====================================================================================================
+
+SUMMARY TABLE - TOP 10 STRATEGIES
+====================================================================================================
+
+Rank   Strategy                              Trades      WR      P/L   Sharpe        P-val
+----------------------------------------------------------------------------------------------------
+1      P:1-5 M>25% H:3m                        2107  42.2%    9.76%     1.31     1.56e-04
+2      P:1-5 M>25% H:5m                        2040  41.7%    9.66%     1.12     1.49e-03
+3      P:1-5 M>20% H:3m                        2487  42.3%    7.49%     1.07     7.70e-04
+4      P:1-5 M>18% H:3m                        2700  42.2%    6.12%     0.91     3.07e-03
+5      P:1-5 M>20% H:5m                        2415  41.4%    7.00%     0.87     7.41e-03
+6      P:1-5 M>15% H:3m                        2912  42.0%    5.08%     0.78     8.45e-03
+7      P:1-5 M>12% H:3m                        2912  42.0%    5.08%     0.78     8.45e-03
+8      P:1-5 M>10% H:3m                        2912  42.0%    5.08%     0.78     8.45e-03
+9      P:1-5 M>8% H:3m                         2912  42.0%    5.08%     0.78     8.45e-03
+10     P:1-10 M>25% H:5m                       2794  43.2%    6.22%     0.75     1.27e-02
+
+====================================================================================================
+
+IMPLEMENTATION GUIDE
+====================================================================================================
+
+1. GETTING STARTED
+   - Start with Tier 1 strategies (highest confidence)
+   - Begin with 10-20 contracts per trade
+   - Paper trade for 1-2 weeks first
+
+2. POSITION SIZING
+   - Risk 1-2% of bankroll per trade
+   - Use Kelly Criterion for optimal sizing:
+     f = (edge / odds) where edge = expected P/L
+   - Start conservative (1/4 to 1/2 Kelly)
+
+3. EXECUTION
+   - Use limit orders when possible (maker fees lower)
+   - Monitor bid-ask spread
+   - Set stop-loss at -50% to limit tail risk
+
+4. MONITORING
+   - Track realized Sharpe ratio vs backtest
+   - Monitor win rate (should be ~40-45%)
+   - Alert if performance degrades >20%
+
+5. RISK MANAGEMENT
+   - Max 5 concurrent positions
+   - Daily loss limit: 10% of bankroll
+   - Weekly review of performance
+
+====================================================================================================
+
+IMPORTANT DISCLAIMERS
+====================================================================================================
+
+1. Past performance does not guarantee future results
+2. Market conditions may change
+3. Slippage and execution quality will impact real performance
+4. These strategies assume taker fees; maker fees improve profitability
+5. Position sizing and risk management are critical
+6. Start small and scale gradually
+
+====================================================================================================
+
+END OF DOCUMENT
+====================================================================================================

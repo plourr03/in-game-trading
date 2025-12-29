@@ -1,0 +1,64 @@
+# Kalshi NBA Trading Analysis Configuration
+
+# Database connection for play-by-play data
+database:
+  host: "localhost"
+  port: 4101
+  database: "postgres"
+  user: "postgres"
+  password: "Plourr!03"
+
+# Data paths
+paths:
+  kalshi_data: "kalshi_data/jan_dec_2025_games"
+  pbp_cache: "data/pbp_cache"
+  outputs: "outputs"
+  figures: "outputs/figures"
+  metrics: "outputs/metrics"
+  reports: "outputs/reports"
+
+# Analysis parameters
+analysis:
+  # Minimum volume coverage for valid games
+  min_volume_coverage: 0.3
+  
+  # Maximum missing price percentage
+  max_missing_pct: 0.5
+  
+  # Run detection
+  min_run_points: 6
+  run_thresholds: [6, 8, 10, 12, 15]
+  
+  # Momentum windows (minutes)
+  momentum_windows: [3, 5, 10]
+  
+  # Score differential bins
+  score_diff_bins: 20
+  
+  # Time remaining bins
+  time_bins: 10
+  
+  # Volatility analysis
+  volatility_lags: 5
+  
+  # Efficiency tests
+  autocorr_lags: 5
+  event_lead_lags: [1, 2, 3]
+  
+# Backtesting parameters
+backtesting:
+  initial_capital: 10000.0
+  position_size: 100
+  kelly_fraction: 0.25
+  
+# Visualization settings
+visualization:
+  style: "seaborn-v0_8-darkgrid"
+  figure_dpi: 300
+  figure_format: "png"
+  
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
