@@ -43,6 +43,7 @@ class PaperTradingSystem:
         self.signals = []  # All signals generated
         self.open_positions = {}  # game_id -> list of positions
         self.closed_trades = []  # Completed trades
+        self.game_status = {}  # game_id -> status ('not_started', 'active', 'ended')
         
         # Config
         self.entry_threshold = 0.60
@@ -75,8 +76,12 @@ class PaperTradingSystem:
             self.exit_model = joblib.load('ml_models/outputs/exit_timing_model.pkl')
             self.features_list = joblib.load('ml_models/outputs/advanced_features.pkl')
             print(f"  [OK] Models loaded ({len(self.features_list)} features)")
+            print(f"  [OK] ML predictions ENABLED - Entry threshold: {self.entry_threshold:.0%}")
+            self.ml_enabled = True
         except Exception as e:
             print(f"  [ERROR] Failed to load models: {e}")
+            print(f"  [WARNING] ML predictions DISABLED - monitoring only")
+            self.ml_enabled = False
             return False
         
         # Find tickers for all games
@@ -144,7 +149,9 @@ class PaperTradingSystem:
         if game_id not in self.price_history:
             return None
         
-        if len(self.price_history[game_id]) < self.min_data_points:
+        data_points = len(self.price_history[game_id])
+        if data_points < self.min_data_points:
+            print(f"    [ML] Warming up... {data_points}/{self.min_data_points} data points")
             return None
         
         df = pd.DataFrame(self.price_history[game_id])
@@ -266,6 +273,9 @@ class PaperTradingSystem:
     
     def generate_signal(self, game, game_id):
         """Generate trading signal"""
+        if not self.ml_enabled:
+            return None
+            
         features_dict = self.calculate_features(game_id)
         
         if not features_dict:
@@ -277,6 +287,10 @@ class PaperTradingSystem:
         
         # Get prediction
         entry_prob = self.entry_model.predict_proba(X)[0, 1]
+        
+        # Debug: Show all predictions (not just signals)
+        if entry_prob >= 0.40:  # Show if somewhat confident
+            print(f"    [ML] Probability: {entry_prob:.1%} (threshold: {self.entry_threshold:.0%})")
         
         if entry_prob >= self.entry_threshold:
             exit_minutes = int(self.exit_model.predict(X)[0])
@@ -312,12 +326,36 @@ class PaperTradingSystem:
         current_data = self.price_history[game_id][-1]
         current_minute = current_data['game_minute']
         exit_price = current_data['mid']
+        period = current_data['period']
+        score_home = current_data['score_home']
+        score_away = current_data['score_away']
         
         exits = []
         
         for pos in self.open_positions[game_id][:]:
-            if current_minute >= pos['exit_minute']:
-                # Calculate P/L
+            # Check if it's time to exit based on ML model
+            should_exit_time = current_minute >= pos['exit_minute']
+            
+            if should_exit_time:
+                # HOLD TO EXPIRATION RULE:
+                # Don't sell if outcome is nearly certain - better to collect full $1.00 payout
+                # and avoid exit fees
+                score_diff = abs(score_home - score_away)
+                time_remaining = 48 - current_minute
+                
+                hold_to_expiration = (
+                    period >= 4 and  # Q4
+                    (time_remaining <= 6 or (period >= 4 and time_remaining <= 3)) and  # Late game
+                    exit_price >= 95 and  # Price very high (nearly certain)
+                    score_diff >= 11  # Big lead
+                )
+                
+                if hold_to_expiration:
+                    # Don't exit - hold to expiration
+                    print(f"    [HOLD] Holding to expiration (Q{period}, price=${exit_price:.0f}c, diff={score_diff})")
+                    continue
+                
+                # Calculate P/L for normal exit
                 buy_fee = calculate_kalshi_fees(pos['contracts'], pos['entry_price'], is_taker=True)
                 sell_fee = calculate_kalshi_fees(pos['contracts'], exit_price, is_taker=True)
                 
@@ -417,16 +455,182 @@ class PaperTradingSystem:
                     
                     game_id = game['game_id']
                     
+                    # Initialize game status if not set
+                    if game_id not in self.game_status:
+                        self.game_status[game_id] = 'not_started'
+                    
+                    # Check if game has started based on status
+                    game_status_code = game.get('game_status', 1)
+                    
+                    # Skip games that already ended (status = 3)
+                    if game_status_code == 3:
+                        if self.game_status[game_id] != 'ended':
+                            self.game_status[game_id] = 'ended'
+                            print(f"  {game['away']}@{game['home']}: [GAME ALREADY FINISHED]")
+                        continue
+                    
+                    # Skip games we've already marked as ended
+                    if self.game_status[game_id] == 'ended':
+                        continue
+                    
+                    # If game hasn't started yet (status = 1), check if it already finished
+                    if game_status_code == 1 and self.game_status[game_id] == 'not_started':
+                        # Check start time if available
+                        start_time_utc = game.get('start_time_utc')
+                        game_already_finished = False
+                        game_should_have_started = False
+                        
+                        if start_time_utc:
+                            try:
+                                start_dt = datetime.fromisoformat(start_time_utc.replace('Z', '+00:00'))
+                                now_dt = datetime.now(start_dt.tzinfo)
+                                
+                                time_since_start = (now_dt - start_dt).total_seconds() / 60
+                                
+                                if time_since_start > 120:
+                                    # Game started more than 2 hours ago but no data
+                                    game_already_finished = True
+                                    self.game_status[game_id] = 'ended'
+                                    print(f"  {game['away']}@{game['home']}: Game already finished (started {time_since_start/60:.1f}h ago)")
+                                elif now_dt < start_dt:
+                                    # Game hasn't started yet
+                                    time_until = (start_dt - now_dt).total_seconds() / 60
+                                    print(f"  {game['away']}@{game['home']}: Starts in {time_until:.0f} minutes")
+                                    continue
+                                else:
+                                    # Game should have started (within last 2 hours)
+                                    game_should_have_started = True
+                            except Exception as e:
+                                pass
+                        
+                        if game_already_finished:
+                            continue
+                        
+                        # Only mark as finished if:
+                        # 1. Game should have started (past start time)
+                        # 2. We've tried multiple times (iteration > 5)
+                        # 3. Still no data
+                        if game_should_have_started and iteration > 5:
+                            if game_id not in self.price_history or len(self.price_history.get(game_id, [])) == 0:
+                                self.game_status[game_id] = 'ended'
+                                print(f"  {game['away']}@{game['home']}: No data available (game may have been postponed/cancelled)")
+                                continue
+                        
+                        # Game genuinely not started yet
+                        print(f"  {game['away']}@{game['home']}: Game not started yet")
+                        continue
+                    
                     # Fetch data
                     price_data, pbp_data = self.fetch_game_data(game)
                     
+                    # Check if game hasn't started yet
                     if not price_data or not pbp_data:
-                        print(f"  {game['away']}@{game['home']}: Waiting for data...")
+                        if self.game_status[game_id] == 'not_started':
+                            print(f"  {game['away']}@{game['home']}: Game not started yet")
+                        else:
+                            print(f"  {game['away']}@{game['home']}: Waiting for data...")
                         continue
                     
                     # Extract game state
                     actions = pbp_data['game']['actions']
+                    
+                    # Skip if no actions (game ended or data issue)
+                    if not actions or len(actions) == 0:
+                        if self.game_status[game_id] != 'ended':
+                            self.game_status[game_id] = 'ended'
+                            print(f"  {game['away']}@{game['home']}: [GAME ENDED]")
+                        else:
+                            print(f"  {game['away']}@{game['home']}: Game has ended")
+                        continue
+                    
                     latest = actions[-1]
+                    
+                    # Check if game just ended (be careful - could be overtime!)
+                    action_type = latest.get('actionType', '')
+                    description = latest.get('description', '').lower()
+                    period = latest.get('period', 0)
+                    
+                    # Game only truly ends if:
+                    # 1. We see "game end" explicitly, OR
+                    # 2. Period ended AND scores are not tied (no OT)
+                    is_game_end = False
+                    
+                    if 'game end' in description and 'period end' not in description:
+                        # Explicit game end
+                        is_game_end = True
+                    elif action_type == 'game end':
+                        is_game_end = True
+                    
+                    if is_game_end:
+                        if self.game_status[game_id] != 'ended':
+                            self.game_status[game_id] = 'ended'
+                            
+                            # Get current game state for final stats
+                            score_home = int(latest.get('scoreHome', 0))
+                            score_away = int(latest.get('scoreAway', 0))
+                            period = latest.get('period', 4)
+                            clock = latest.get('clock', 'PT00M00.00S')
+                            game_minute = self._calculate_game_minute(period, clock)
+                            
+                            # Close all open positions for this game at expiration ($1.00)
+                            if game_id in self.open_positions and len(self.open_positions[game_id]) > 0:
+                                print(f"  {game['away']}@{game['home']}: [GAME ENDED] - Settling {len(self.open_positions[game_id])} position(s) at expiration")
+                                
+                                for pos in self.open_positions[game_id][:]:
+                                    # Settle at $1.00 (100 cents)
+                                    expiration_price = 100
+                                    
+                                    buy_fee = calculate_kalshi_fees(pos['contracts'], pos['entry_price'], is_taker=True)
+                                    # No sell fee at expiration - Kalshi pays out automatically
+                                    
+                                    gross_profit_cents = (expiration_price - pos['entry_price']) * pos['contracts']
+                                    net_profit = (gross_profit_cents / 100) - buy_fee  # Only entry fee
+                                    
+                                    trade = {
+                                        'timestamp': datetime.now(),
+                                        'game_id': game_id,
+                                        'entry_minute': pos['entry_minute'],
+                                        'exit_minute': game_minute,
+                                        'entry_price': pos['entry_price'],
+                                        'exit_price': expiration_price,
+                                        'contracts': pos['contracts'],
+                                        'gross_profit_cents': gross_profit_cents,
+                                        'buy_fee': buy_fee,
+                                        'sell_fee': 0,  # No sell fee at expiration
+                                        'net_profit': net_profit,
+                                        'probability': pos['probability'],
+                                        'won': net_profit > 0,
+                                        'held_to_expiration': True
+                                    }
+                                    
+                                    print(f"    [EXPIRATION] Settled at $1.00 -> P/L: ${trade['net_profit']:+.2f} (saved exit fees!)")
+                                    self.closed_trades.append(trade)
+                                    self.log_trade(trade)
+                                    
+                                    # Log to database
+                                    try:
+                                        db_trade = trade.copy()
+                                        db_trade['entry_score_home'] = pos.get('entry_score_home', score_home)
+                                        db_trade['entry_score_away'] = pos.get('entry_score_away', score_away)
+                                        db_trade['exit_score_home'] = score_home
+                                        db_trade['exit_score_away'] = score_away
+                                        db_trade['entry_timestamp'] = pos.get('entry_timestamp', datetime.now())
+                                        db_trade['exit_timestamp'] = datetime.now()
+                                        self.db.log_trade(db_trade)
+                                    except Exception as e:
+                                        pass
+                                
+                                self.open_positions[game_id] = []
+                            else:
+                                print(f"  {game['away']}@{game['home']}: [GAME ENDED]")
+                        else:
+                            print(f"  {game['away']}@{game['home']}: Game has ended")
+                        continue
+                    
+                    # Mark game as active
+                    if self.game_status[game_id] == 'not_started':
+                        self.game_status[game_id] = 'active'
+                        print(f"  {game['away']}@{game['home']}: [GAME STARTED]")
                     
                     score_home = int(latest.get('scoreHome', 0))
                     score_away = int(latest.get('scoreAway', 0))
@@ -466,6 +670,16 @@ class PaperTradingSystem:
                     score_diff = score_home - score_away
                     data_points = len(self.price_history[game_id])
                     print(f"  {game['away']}@{game['home']}: Q{period} | {score_away}-{score_home} (diff:{score_diff:+d}) | ${price_data['mid']:.0f}c | {data_points} pts")
+                    
+                    # Display last action
+                    last_action_desc = latest.get('description', '')
+                    
+                    # Don't show "Game End" or "Period End" as actions - we already handled those
+                    if last_action_desc and 'end' not in last_action_desc.lower():
+                        # Truncate if too long
+                        if len(last_action_desc) > 70:
+                            last_action_desc = last_action_desc[:67] + "..."
+                        print(f"    Last: {last_action_desc}")
                     
                     # Check exits first
                     exits = self.check_exits(game_id)
@@ -521,11 +735,30 @@ class PaperTradingSystem:
                 if total_open > 0:
                     print(f"\n  Open positions: {total_open}")
                 
+                # Check if all games have ended
+                all_games_ended = all(
+                    self.game_status.get(g['game_id'], 'not_started') == 'ended' 
+                    for g in self.games if g['ticker']
+                )
+                
+                if all_games_ended:
+                    print("\n[INFO] All games have ended - will finish this session")
+                    break
+                
                 # Wait
                 time.sleep(self.poll_interval)
                 
         except KeyboardInterrupt:
             print("\n\n[OK] Paper trading stopped by user")
+        
+        # Check if all games ended naturally
+        all_games_ended = all(
+            self.game_status.get(g['game_id'], 'not_started') == 'ended' 
+            for g in self.games if g['ticker']
+        )
+        
+        if all_games_ended:
+            print("\n[OK] All games have ended - stopping paper trading")
         
         # Final summary
         elapsed = (time.time() - start_time) / 60
@@ -540,10 +773,16 @@ class PaperTradingSystem:
             total_pl = sum(t['net_profit'] for t in self.closed_trades)
             wins = sum(1 for t in self.closed_trades if t['won'])
             win_rate = wins / len(self.closed_trades)
+            held_to_expiration = sum(1 for t in self.closed_trades if t.get('held_to_expiration', False))
             
             print(f"Win Rate: {win_rate:.1%}")
             print(f"Total P/L: ${total_pl:+,.2f}")
             print(f"Avg P/L: ${total_pl/len(self.closed_trades):+.2f}")
+            
+            if held_to_expiration > 0:
+                print(f"\nHold-to-Expiration:")
+                print(f"  Positions held: {held_to_expiration}")
+                print(f"  Exit fees saved: ~${held_to_expiration * 3.50:.2f}")
             
             # Update database session
             try:
@@ -571,19 +810,24 @@ class PaperTradingSystem:
 
 
 def get_todays_games():
-    """Get tonight's games"""
+    """Get tonight's games with start times"""
     from nba_api.live.nba.endpoints import scoreboard
+    from datetime import timezone
     
     try:
         games_data = scoreboard.ScoreBoard().get_dict()
         games = []
         
         for g in games_data['scoreboard']['games']:
+            # Parse start time
+            start_time_utc = g.get('gameTimeUTC', None)
+            
             game = {
                 'game_id': g['gameId'],
                 'away': g['awayTeam']['teamTricode'],
                 'home': g['homeTeam']['teamTricode'],
-                'start_time': g.get('gameTimeUTC', 'Unknown'),
+                'start_time_utc': start_time_utc,
+                'game_status': g.get('gameStatus', 1),  # 1=not started, 2=in progress, 3=ended
                 'ticker': None
             }
             games.append(game)
@@ -603,14 +847,22 @@ if __name__ == "__main__":
     else:
         print(f"\nFound {len(games)} games:")
         for g in games:
-            print(f"  {g['away']} @ {g['home']}")
+            start_info = ""
+            if g.get('start_time_utc'):
+                try:
+                    start_dt = datetime.fromisoformat(g['start_time_utc'].replace('Z', '+00:00'))
+                    start_local = start_dt.astimezone()
+                    start_info = f" - {start_local.strftime('%I:%M %p')}"
+                except:
+                    pass
+            print(f"  {g['away']} @ {g['home']}{start_info}")
         
         print("\nInitializing paper trading system...")
         system = PaperTradingSystem(games)
         
         if system.initialize():
             print("\n[READY] Starting paper trading...")
-            system.run(duration_minutes=180)  # 3 hours
+            system.run(duration_minutes=360)  # 6 hours
         else:
             print("[ERROR] Initialization failed")
 

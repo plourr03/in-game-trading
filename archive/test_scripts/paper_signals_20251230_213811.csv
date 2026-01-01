@@ -1,0 +1,3 @@
+timestamp,game_id,away_team,home_team,action,entry_price,bid,ask,contracts,probability,hold_minutes,score_home,score_away,period,game_minute
+2025-12-30 22:05:48.202484,0022500459,BOS,UTA,BUY,53.0,7,99,500,0.6787752075144978,3,107,116,4,41.31666666666666
+2025-12-30 22:10:10.123641,0022500459,BOS,UTA,BUY,51.0,3,99,500,0.6653669555392671,5,114,123,4,44.5

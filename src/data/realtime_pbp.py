@@ -57,7 +57,9 @@ class RealTimePBPFetcher:
             return data
         
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching PBP data for game {game_id}: {e}")
+            # Don't print 403 errors (game hasn't started yet)
+            if '403' not in str(e):
+                print(f"Error fetching PBP data for game {game_id}: {e}")
             return None
     
     def extract_current_scores(self, pbp_data: Dict) -> Dict[str, int]:
@@ -255,6 +257,7 @@ def test_fetcher():
 
 if __name__ == "__main__":
     test_fetcher()
+
 
 
 
