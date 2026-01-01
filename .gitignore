@@ -53,9 +53,10 @@ env/
 *.hdf5
 *.model
 
-# Data files (too large for git - comment out if you want to include)
-# kalshi_data/**/*.csv
-# ml_models/exit_training_data.csv
+# Data files (too large for git)
+ml_models/outputs/training_data.csv
+ml_models/outputs/advanced_training_data.csv
+ml_models/exit_training_data.csv
 
 # Outputs
 outputs/
